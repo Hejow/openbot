@@ -298,6 +298,7 @@ export function isPlanLimitDiagnostic(message: string): boolean {
     /\bhit your (?:(?:session|weekly|usage|plan|opus|sonnet) )*limit\b/iu.test(message) ||
     /\b(?:session|weekly) (?:usage )?limit\b.{0,80}\b(?:reached|resets?)\b/iu.test(message) ||
     /\b(?:GoUsageLimitError|Go usage limit exceeded)\b/u.test(message) ||
+    /\bOpenCode Go \d+[- ]hours? usage limit reached\b/iu.test(message) ||
     /\busage limit reached for \d+ ?hours?\b/iu.test(message) ||
     /\b(?:daily|weekly|monthly) limit exhausted\b/iu.test(message) ||
     /\bsubscription:free-usage-exhausted\b/u.test(message)

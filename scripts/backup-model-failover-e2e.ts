@@ -217,7 +217,9 @@ const answer = (request) => {
         }
         if (current.includes("usage-wait")) return;
         if (limited) {
-          const error = { message: "You've hit your usage limit. Try again later.", codexErrorInfo: "usageLimitExceeded" };
+          const error = caseId === "channel-go"
+            ? { message: "OpenCode Go 5 hour usage limit reached. Switch to a free model, or turn on Extra Usage on the Go page in OpenCode Console to keep going." }
+            : { message: "You've hit your usage limit. Try again later.", codexErrorInfo: "usageLimitExceeded" };
           turn.error = error;
           write({ method: "error", params: { threadId: thread.id, turnId: turn.id, error, willRetry: false } });
           finish("failed");
@@ -856,12 +858,15 @@ try {
   // In the chain, the first backup's plan refuses the continuation before any work.
   for (const { mode, caseId, models } of [
     { mode: "tool-only", caseId: "channel", models: [PRIMARY] },
+    { mode: "tool-only", caseId: "channel-go", models: [PRIMARY] },
     { mode: "chain-empty", caseId: "channel-chain", models: [PRIMARY, BACKUP] },
   ]) {
     await check(
-      mode === "tool-only"
-        ? "a channel keeps its task and completed work through fallback"
-        : "a channel keeps its completed work when a backup refuses before work",
+      caseId === "channel-go"
+        ? "a channel continues after the OpenCode Go 5 hour usage limit"
+        : mode === "tool-only"
+          ? "a channel keeps its task and completed work through fallback"
+          : "a channel keeps its completed work when a backup refuses before work",
       async () => {
         await restart();
         const agent = await createCodex(`Channel ${mode}`, automaticBackups);
@@ -885,6 +890,7 @@ try {
           ),
         );
         const before = turns().length;
+        const beforeWork = readLog<{ caseId: string; step: string }>(workLog).length;
         await runCauseEffect(
           service.channels.command(
             {
@@ -924,6 +930,14 @@ try {
         const last = backups.at(-1)?.input ?? "";
         assert.ok(last.includes(`checkpoint-result=${caseId}`), "The channel backup receives the tool result.");
         assert.ok(last.includes("Continue the unfinished task"));
+        assert.deepEqual(
+          readLog<{ caseId: string; step: string }>(workLog).slice(beforeWork),
+          [
+            { caseId, step: "checkpoint" },
+            { caseId, step: "final" },
+          ],
+          "Completed work runs once.",
+        );
         return { taskId: task.id, state: task.state };
       },
     );
